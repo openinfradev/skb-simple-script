@@ -178,8 +178,6 @@ def assign_user_to_client_role(config, user, role, client):
     }])
     response = requests.post(url, headers=headers, data=payload)
     # if status code is 2xx, print success message
-    print("assign user to client role")
-    print(client)
     if response.status_code // 100 == 2:
         print(f"User {user['username']} assigned to client {client['clientId']} role {role['name']}")
     else:
@@ -202,8 +200,6 @@ def unassign_user_to_client_role(config, user, role, client):
     }])
     response = requests.delete(url, headers=headers, data=payload)
     # if status code is 2xx, print success message
-    print("unassign user to client role")
-    print(client)
     if response.status_code // 100 == 2:
         print(f"User {user['username']} unassigned to client {client['clientId']} role {role['name']}")
     else:
@@ -304,9 +300,6 @@ if __name__ == "__main__":
         for change_type, path, value in type_paths_and_values:
             # if path is start with 'root['users'], continue
             if path.startswith("root['users']"):
-                print(
-                    f"Warning: user list in {CLIENT_ROLE_FILE_NAME} is out-of-date. Please run get_client_roles.py "
-                    f"code first.")
                 local_data['users'] = remote_data['users']
                 continue
 
