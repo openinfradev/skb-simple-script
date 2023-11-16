@@ -178,11 +178,13 @@ def assign_user_to_client_role(config, user, role, client):
     }])
     response = requests.post(url, headers=headers, data=payload)
     # if status code is 2xx, print success message
+    print("assign user to client role")
+    print(client)
     if response.status_code // 100 == 2:
-        print(f"User {user['username']} assigned to client {client['name']} role {role['name']}")
+        print(f"User {user['username']} assigned to client {client['clientId']} role {role['name']}")
     else:
         print(
-            f"Failed to assign user {user['username']} to client {client['name']} role {role['name']}. Reason: {response.text}")
+            f"Failed to assign user {user['username']} to client {client['clientId']} role {role['name']}. Reason: {response.text}")
 
 
 def unassign_user_to_client_role(config, user, role, client):
@@ -200,11 +202,13 @@ def unassign_user_to_client_role(config, user, role, client):
     }])
     response = requests.delete(url, headers=headers, data=payload)
     # if status code is 2xx, print success message
+    print("unassign user to client role")
+    print(client)
     if response.status_code // 100 == 2:
-        print(f"User {user['username']} unassigned to client {client['name']} role {role['name']}")
+        print(f"User {user['username']} unassigned to client {client['clientId']} role {role['name']}")
     else:
         print(
-            f"Failed to unassign user {user['username']} to client {client['name']} role {role['name']}. Reason: {response.text}")
+            f"Failed to unassign user {user['username']} to client {client['clientId']} role {role['name']}. Reason: {response.text}")
 
 
 # add keycloak client role
@@ -270,7 +274,7 @@ if __name__ == "__main__":
         for role in client['roles']:
             if 'users' not in role or not isinstance(role['users'], list):
                 print(
-                    f"'users' field in role '{role['name']}' for client '{client['name']}' is missing or null. Please "
+                    f"'users' field in role '{role['name']}' for client '{client['clientId']}' is missing or null. Please "
                     f"use \'users: []\' to indicate an empty list.")
                 exit(1)
             for user in role['users']:

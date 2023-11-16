@@ -90,7 +90,7 @@ def get_remote_data(config):
     for user in users:
         data['users'].append({
             "accountId": user['username'],
-            "name": user['username']
+            "name": user['firstName']
         })
 
     i = 0
@@ -142,8 +142,8 @@ if __name__ == "__main__":
     data = get_remote_data(config)
 
     print(f"Data saved to {CLIENT_ROLE_FILE_NAME}")
-    with open(CLIENT_ROLE_FILE_NAME, 'w') as file:
-        yaml.safe_dump(data, file, indent=2, sort_keys=True)
+    with open(CLIENT_ROLE_FILE_NAME, 'w', encoding='utf-8') as file:
+        yaml.safe_dump(data, file, indent=2, sort_keys=True, allow_unicode=True)
 
 
 

@@ -44,8 +44,6 @@ def save_token_to_file(conf, filename):
 
 
 if __name__ == "__main__":
-    TKS_URL = "https://tks-console-dev.taco-cat.xyz"
-    BASE_URL = "https://tks-console-dev.taco-cat.xyz"
     CLIENT_ID = "admin-cli"
 
     config_dict = {}
@@ -53,6 +51,8 @@ if __name__ == "__main__":
     SERVER_URL = input("Please enter the server URL: ")
     while SERVER_URL == "":
         SERVER_URL = input("Please enter the server URL: ")
+    if SERVER_URL[-1] == "/":
+        SERVER_URL = SERVER_URL[:-1]
     config_dict["server_url"] = SERVER_URL
 
     ORGANIZATION_ID = input("Please enter the organization name: ")
@@ -68,14 +68,11 @@ if __name__ == "__main__":
     while USERNAME == "":
         PASSWORD = getpass.getpass("비밀번호를 입력하세요: ")
 
-    if SERVER_URL[-1] == "/":
-        SERVER_URL = SERVER_URL[:-1]
-
     # Get the token and save it to a file
     try:
-        keycloak_token = get_keycloak_token(BASE_URL, ORGANIZATION_ID, CLIENT_ID, USERNAME, PASSWORD)
+        keycloak_token = get_keycloak_token(SERVER_URL, ORGANIZATION_ID, CLIENT_ID, USERNAME, PASSWORD)
         config_dict["keycloak_token"] = keycloak_token
-        tks_token = get_tks_token(TKS_URL, ORGANIZATION_ID, USERNAME, PASSWORD)
+        tks_token = get_tks_token(SERVER_URL, ORGANIZATION_ID, USERNAME, PASSWORD)
         config_dict["tks_token"] = tks_token
     except Exception as e:
         print(e)
