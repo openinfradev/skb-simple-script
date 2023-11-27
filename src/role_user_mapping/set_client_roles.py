@@ -26,10 +26,16 @@ def get_clients(config):
         "Authorization": f"Bearer {config['keycloak_token']}"
     }
     response = requests.get(url, headers=headers)
+    # if status code is 2xx, print success message
+    if response.status_code // 100 == 2:
+        print("Client list retrieved successfully.")
+    else:
+        print(f"Failed to retrieve client list. Reason: {response.text}")
+        exit(1)
     resp_data = response.json()
     client_list = []
     for client in resp_data:
-        if client['clientId'].endswith('-k8s-api'):
+        if client['clientId'].endswith('k8s-api'):
             client_list.append(client)
             client_map[client['clientId']] = client
     return client_list
@@ -43,9 +49,10 @@ def get_client_roles(config, client):
     response = requests.get(url, headers=headers)
     resp_data = response.json()
     roles = []
+    role_map[client['clientId']] = {}
     for role in resp_data:
         roles.append(role)
-        role_map[role['name']] = role
+        role_map[client['clientId']][role['name']] = role
     return roles
 
 
@@ -55,6 +62,12 @@ def get_users(config):
         "Authorization": f"Bearer {config['keycloak_token']}"
     }
     response = requests.get(users_url, headers=headers)
+    # if status code is 2xx, print success message
+    if response.status_code // 100 == 2:
+        print("User list retrieved successfully.")
+    else:
+        print(f"Failed to retrieve user list. Reason: {response.text}")
+        exit(1)
     resp_data = response.json()
     user_list = []
     for user in resp_data:
@@ -70,6 +83,10 @@ def get_user_role_mapping(base_url, realm, role_name, client_id):
     }
 
     response = requests.get(url, headers=headers)
+    # if status code is 2xx, print success message
+    if response.status_code // 100 != 2:
+        print(f"Failed to retrieve user role mapping for role {role_name}. Reason: {response.text}")
+        exit(1)
     resp_data = response.json()
     user_list = []
     for user in resp_data:
@@ -106,17 +123,16 @@ def get_remote_data(config):
         "clients": [],
         "users": []
     }
-
     clients = get_clients(config)
 
     users = get_users(config)
     for client in clients:
         roles = get_client_roles(config, client)
         client_role_map[client['clientId']] = roles
+        role_user_map[client['clientId']] = {}
         for role in roles:
-            role_user_map[role['name']] = get_user_role_mapping(config['server_url'], config['organization_id'],
+            role_user_map[client['clientId']][role['name']] = get_user_role_mapping(config['server_url'], config['organization_id'],
                                                                 role['name'], client['id'])
-
     for user in users:
         data['users'].append({
             "accountId": user['username'],
@@ -135,7 +151,7 @@ def get_remote_data(config):
                 "name": role['name'],
                 "users": []
             })
-            for user in role_user_map[role['name']]:
+            for user in role_user_map[client['clientId']][role['name']]:
                 data['clients'][i]['roles'][j]['users'].append(user['username'])
             j += 1
         i += 1
@@ -148,14 +164,30 @@ def diff_changes(remote_data, local_data):
     return diff
 
 
-def get_value_from_path(data, path_string):
+def get_value_from_path(data, client_index, path_string):
+
+    # print(data)
+    segments = path_string.replace("root", "").replace("][", ".").replace("[", "").replace("]", "").replace("'",
+                                                                                                            "").split(
+        ".")
+
+    if "roles" in path_string:
+        role_name = data['clients'][client_index]['roles'][int(segments[1])]['name']
+    else:
+        role_name = ""
+
+    return role_name
+
+def get_value_from_path2(data, path_string):
+
+    # print(data)
     segments = path_string.replace("root", "").replace("][", ".").replace("[", "").replace("]", "").replace("'",
                                                                                                             "").split(
         ".")
 
     client_name = data[segments[0]][int(segments[1])]['name']
 
-    if "users" in path_string:
+    if "roles" in path_string:
         role_name = data[segments[0]][int(segments[1])]['roles'][int(segments[3])]['name']
     else:
         role_name = ""
@@ -252,6 +284,12 @@ def is_token_expired(token):
         print(f"Token validation error: {e}")
         return True
 
+def sort_dict_recursively(d):
+    for key, value in d.items():
+        if isinstance(value, dict):
+            d[key] = sort_dict_recursively(value)
+
+    return dict(sorted(d.items()))
 
 if __name__ == "__main__":
     print(f"Reading config... {CONFIG_FILE_NAME}")
@@ -265,7 +303,13 @@ if __name__ == "__main__":
 
     print(f"Reading local data... {CLIENT_ROLE_FILE_NAME}")
     local_data = read_data_from_file(CLIENT_ROLE_FILE_NAME)
+    del(local_data['users'])
+    # sorted_local_data = sort_dict_recursively(local_data)
+    for client in local_data["clients"]:
+        client["roles"].sort(key=lambda role: role["name"])
+    local_data['clients'].sort(key=lambda client: client['name'])
     get_users(config)
+
     for client in local_data['clients']:
         for role in client['roles']:
             if 'users' not in role or not isinstance(role['users'], list):
@@ -280,74 +324,116 @@ if __name__ == "__main__":
                     exit(1)
 
     print("Starting client role sync...")
-    while True:
+    diff_exist = True
+    while diff_exist:
+        diff_exist = False
         remote_data = get_remote_data(config)
+        del(remote_data['users'])
+        for client in remote_data["clients"]:
+            client["roles"].sort(key=lambda role: role["name"])
+        remote_data['clients'].sort(key=lambda client: client['name'])
 
-        diff = diff_changes(remote_data, local_data)
+        # verifity remote_data and local_data
+        if len(remote_data['clients']) != len(local_data['clients']) :
+            print("please run get_client_role.py first")
+            exit(1)
+        for i in range(len(remote_data['clients'])):
+            if remote_data['clients'][i]['name'] != local_data['clients'][i]['name']:
+                print("please run get_client_role.py first")
+                exit(1)
 
-        roles_to_be_added = []
-        roles_to_be_removed = []
+        for i in range(len(remote_data['clients'])):
+            client_name = remote_data['clients'][i]['name']
+            diff = diff_changes(remote_data['clients'][i], local_data['clients'][i])
 
-        type_paths_and_values = []
+            type_paths_and_values = []
 
-        for change_type, changes in diff.items():
-            for path, value in changes.items():
-                type_paths_and_values.append((change_type, path, value))
+            for change_type, changes in diff.items():
+                for path, value in changes.items():
+                    type_paths_and_values.append((change_type, path, value))
 
-        if len(type_paths_and_values) == 0:
-            break
-
-        for change_type, path, value in type_paths_and_values:
-            # if path is start with 'root['users'], continue
-            if path.startswith("root['users']"):
-                local_data['users'] = remote_data['users']
+            if len(type_paths_and_values) == 0:
                 continue
+            diff_exist = True
 
-            if change_type == "iterable_item_added":
-                if "users" not in path:
-                    # role add
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    role_name = value['name']
-                    add_client_role(config, client_map[client_name]['id'], role_name)
-                else:
-                    # user add
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    user_accountId = value
-                    assign_user_to_client_role(config, user_map[user_accountId], role_map[role_name],
-                                               client_map[client_name])
-            elif change_type == "iterable_item_removed":
-                if "users" not in path:
-                    # role remove
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    role_name = value['name']
-                    delete_client_role(config, client_map[client_name]['id'], role_name)
-                else:
-                    # user remove
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    user_accountId = value
-                    unassign_user_to_client_role(config, user_map[user_accountId], role_map[role_name],
-                                                 client_map[client_name])
-            elif change_type == "values_changed":
-                if "users" not in path:
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    if "name" in value['new_value']:
-                        new_role_name = value['new_value']['name']
+            for change_type, path, value in type_paths_and_values:
+                if change_type == "iterable_item_added":
+                    if "users" not in path:
+                        # role add
+                        role_name = value['name']
+                        add_client_role(config, client_map[client_name]['id'], role_name)
                     else:
-                        new_role_name = value['new_value']
-                    if "name" in value['old_value']:
-                        old_role_name = value['old_value']['name']
+                        # user add
+                        role_name = get_value_from_path(local_data, i, path)
+                        user_accountId = value
+                        assign_user_to_client_role(config, user_map[user_accountId], role_map[client_name][role_name],
+                                                   client_map[client_name])
+                elif change_type == "iterable_item_removed":
+                    if "users" not in path:
+                        role_name = value['name']
+                        delete_client_role(config, client_map[client_name]['id'], role_name)
                     else:
-                        old_role_name = value['old_value']
-                    add_client_role(config, client_map[client_name]['id'], new_role_name)
-                    delete_client_role(config, client_map[client_name]['id'], old_role_name)
+                        role_name = get_value_from_path(remote_data, i,  path)
+                        user_accountId = value
+                        unassign_user_to_client_role(config, user_map[user_accountId], role_map[client_name][role_name],
+                                                     client_map[client_name])
+                elif change_type == "values_changed":
+                    if "roles" not in path:
+                        old_roles = value['old_value']['roles']
+                        new_roles = value['new_value']['roles']
+                        old_roles_name = []
+                        new_roles_name = []
+                        for old_role in old_roles:
+                            old_roles_name.append(old_role['name'])
+                        for new_role in new_roles:
+                            new_roles_name.append(new_role['name'])
 
-                else:
-                    client_name, role_name = get_value_from_path(remote_data, path)
-                    old_user_accountId = value['old_value']
-                    new_user_accountId = value['new_value']
-                    assign_user_to_client_role(config, user_map[new_user_accountId], role_map[role_name],
-                                               client_map[client_name])
-                    unassign_user_to_client_role(config, user_map[old_user_accountId], role_map[role_name],
-                                                 client_map[client_name])
+                        new_role_list = set(new_roles_name) - set(old_roles_name)
+                        old_role_list = set(old_roles_name) - set(new_roles_name)
+
+                        for new_role in new_role_list:
+                            add_client_role(config, client_map[client_name]['id'], new_role)
+                        for old_role in old_role_list:
+                            delete_client_role(config, client_map[client_name]['id'], old_role)
+                        continue
+
+                    if "users" not in path:
+                        role_name = get_value_from_path(remote_data, i, path)
+                        if "name" in value['new_value'] and "name" in value['old_value']:
+                            if value['new_value']['name'] == value['old_value']['name']:
+                                old_user_accountIds = value['old_value']['users']
+                                new_user_accountIds = value['new_value']['users']
+                                new_user_list = set(new_user_accountIds) - set(old_user_accountIds)
+                                old_user_list = set(old_user_accountIds) - set(new_user_accountIds)
+
+                                for new_user_accountId in new_user_list:
+                                    assign_user_to_client_role(config, user_map[new_user_accountId], role_map[client_name][role_name],
+                                                               client_map[client_name])
+                                for old_user_accountId in old_user_list:
+                                    unassign_user_to_client_role(config, user_map[old_user_accountId], role_map[client_name][role_name],
+                                                             client_map[client_name])
+                                continue
+
+                        if "name" in value['new_value']:
+                            new_role_name = value['new_value']['name']
+                        else:
+                            new_role_name = value['new_value']
+                        if "name" in value['old_value']:
+                            old_role_name = value['old_value']['name']
+                        else:
+                            old_role_name = value['old_value']
+                        delete_client_role(config, client_map[client_name]['id'], old_role_name)
+                        add_client_role(config, client_map[client_name]['id'], new_role_name)
+
+                    else:
+                        client_name, role_name = get_value_from_path(remote_data, path)
+                        old_user_accountId = value['old_value']
+                        new_user_accountId = value['new_value']
+
+                        assign_user_to_client_role(config, user_map[new_user_accountId], role_map[client_name][role_name],
+                                                   client_map[client_name])
+                        unassign_user_to_client_role(config, user_map[old_user_accountId], role_map[client_name][role_name],
+                                                     client_map[client_name])
+            time.sleep(1)
 
     print("Client role sync completed.")
