@@ -12,7 +12,7 @@
 ## Usage
 
 Prerequisites:
-- Python3
+- Python3.11
 - Pip3
 - Required python packages in `requirements.txt`
     ```shell
