@@ -70,9 +70,15 @@ if __name__ == "__main__":
 
     # Get the token and save it to a file
     try:
+        print("Getting keycloak token...")
         keycloak_token = get_keycloak_token(SERVER_URL, ORGANIZATION_ID, CLIENT_ID, USERNAME, PASSWORD)
+        if keycloak_token is None:
+            raise Exception("Failed to get keycloak token")
         config_dict["keycloak_token"] = keycloak_token
+        print("Getting tks token...")
         tks_token = get_tks_token(SERVER_URL, ORGANIZATION_ID, USERNAME, PASSWORD)
+        if tks_token is None:
+            raise Exception("Failed to get tks token")
         config_dict["tks_token"] = tks_token
     except Exception as e:
         print(e)
