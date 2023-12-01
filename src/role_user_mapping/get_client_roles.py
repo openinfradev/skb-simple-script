@@ -87,7 +87,6 @@ def get_remote_data(config):
         role_map[client['clientId']] = {}
         for role in roles:
             role_map[client['clientId']][role['name']] = get_user_role_mapping(config['server_url'], config['organization_id'], role['name'], client['id'])
-        print(json.dumps(role_map, indent=2))
     for user in users:
         data['users'].append({
             "accountId": user['username'],

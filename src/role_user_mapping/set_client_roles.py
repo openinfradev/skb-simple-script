@@ -178,23 +178,6 @@ def get_value_from_path(data, client_index, path_string):
 
     return role_name
 
-def get_value_from_path2(data, path_string):
-
-    # print(data)
-    segments = path_string.replace("root", "").replace("][", ".").replace("[", "").replace("]", "").replace("'",
-                                                                                                            "").split(
-        ".")
-
-    client_name = data[segments[0]][int(segments[1])]['name']
-
-    if "roles" in path_string:
-        role_name = data[segments[0]][int(segments[1])]['roles'][int(segments[3])]['name']
-    else:
-        role_name = ""
-
-    return client_name, role_name
-
-
 def assign_user_to_client_role(config, user, role, client):
     url = f"{config['server_url']}/auth/admin/realms/{config['organization_id']}/users/{user['id']}/role-mappings/clients/{client['id']}"
     headers = {
@@ -426,7 +409,7 @@ if __name__ == "__main__":
                         add_client_role(config, client_map[client_name]['id'], new_role_name)
 
                     else:
-                        client_name, role_name = get_value_from_path(remote_data, path)
+                        role_name = get_value_from_path(remote_data, i, path)
                         old_user_accountId = value['old_value']
                         new_user_accountId = value['new_value']
 
