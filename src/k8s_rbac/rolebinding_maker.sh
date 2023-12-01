@@ -1,13 +1,13 @@
 #!/bin/bash
 
 if [ $# -ne 3 ]; then
-  echo "Usage: $0 <ENVIRONMENT> <NAMESPACE> <ROLE>"
+  echo "Usage: $0 <NAMESPACE> <ROLE>"
   exit -1
 fi
 
-ENV=$1
-NAMESPACE=$2
-ROLE=$3
+
+NAMESPACE=$1
+ROLE=$2
 
 kubectl get ns $NAMESPACE > /dev/null 2>&1
 
@@ -28,13 +28,7 @@ subjects:
   name: app-$ROLE
   apiGroup: rbac.authorization.k8s.io
 - kind: Group
-  name: $ENV-app-$ROLE
-  apiGroup: rbac.authorization.k8s.io
-- kind: Group
   name: $NAMESPACE-app-$ROLE
-  apiGroup: rbac.authorization.k8s.io
-- kind: Group
-  name: $ENV-$NAMESPACE-app-$ROLE
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
